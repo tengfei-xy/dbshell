@@ -1,7 +1,6 @@
 #!/bin/bash
-#
+# md5sum:9dfac1fc8ad86b87efae67d56c120676
 info="
-shutup-linux-${0##*[-]} \n
 linux系oracle启停脚本\n
 脚本说明:目前只支持环境:Centos 7.8、单节点、非dg、11g\n
 shell:bash-4.2.46\n
