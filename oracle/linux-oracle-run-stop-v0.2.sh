@@ -1,11 +1,13 @@
 #!/bin/bash
-# md5sum:9dfac1fc8ad86b87efae67d56c120676
+
 info="
-linux系oracle启停脚本\n
-脚本说明:目前只支持环境:Centos 7.8、单节点、非dg、11g\n
-shell:bash-4.2.46\n
-修订时间:2020/04/27\n
-"
+##############################
+# Name: ${0##*[\\/]}
+# Function: Start and stop script through SQLPlus
+# Environment: Centos7.8 oracle 11.2.0.4 
+# Apply Env: Centos7.x oracle 11g(not rac/dg)
+# Date: 2020/04/27
+##############################"
 
 _RET=""
 function JSONString() {
@@ -30,18 +32,19 @@ function JSONFill() {
 
     JSONOutPut
 }
+# this script outputs only a line of json
 function JSONerr(){
     _RET="" && JSONFill "err" "$1"
     exit 1
 }
 function JSONSuccess(){
     _RET="" && JSONFill "success"
-    
+    exit 0
 }
 function ExistSqlPlus() {
     sp=$(which sqlplus 2> /dev/null)
-    # 当前是直接从PATH中中获取路径
-    # 如果没有，应该修改成从$ORACLE_HOME中获取
+    # Now,sqlplus is retrieved from $PATH
+    # if not,It needs to by modified to be retrieved from $ORACLE_HOME
     test $? -ne 0 && JSONerr "Can't find sqlplus"
     # 11.2.0.4.0
     sp_version_full=$($sp -version | grep "[[:digit:]].*\.[[:digit:]]" -o)
@@ -52,14 +55,14 @@ function ExistSqlPlus() {
 function sql_startup() {
     execSQLPlus "${exec} ${option}"
 
-    # 没有启动报错
+    # startup no err
     if ! echo "$_RET" | grep "^ORA-[[:digit:]]*"  -o >/dev/null 2>&1
     then
-        # 检查状态
+        # check status
         execSQLPlus "select status from v\$instance;"
         echo "$_RET" | grep "OPEN"  -o >/dev/null 2>&1 && test $? -eq 0 && JSONSuccess
 
-    # 启动失败
+    # startup err
     else
         JSONerr "${_RET}"
     fi
@@ -68,15 +71,17 @@ function sql_startup() {
 function sql_shutdown(){
     execSQLPlus "${exec} ${option}"
 
-    # 关闭成功
+    # shutdown success
     if echo "$_RET" | grep "^ORACLE instance shut down."  -o >/dev/null 2>&1
     then
         JSONSuccess
-    # 关闭失败
+    # shutdown err
     else
         JSONerr "${_RET}"
     fi
 }
+
+# after exec sqlplus ,output to $TMP 
 function execSQLPlus() {
 {
 $sp -S "$user"/"$password" "$remote" as sysdba <<EOF
@@ -89,7 +94,7 @@ EOF
 # main
 function mainInit() {
 
-    TMP=$(mktemp -u $TMP)|| JSONerr "创建缓存文件失败"
+    TMP=$(mktemp -u $TMP)|| JSONerr "fail to make tmp file"
     ARGS=$(getopt -o "o:u:p:r:h?v:e:d" -l "option:,user:,password:,remote:,help:,exec:,debug:" -n "err args" -- "$@")
     remote=""
     eval set -- "${ARGS}"
@@ -111,19 +116,27 @@ function mainInit() {
             -h|--help|"-?"|-v)
                 echo -e "$info"
                 echo -e "---------------------------------------"
-                echo -e "连接选项:"
-                echo -e "-u|--user\t指定连接用户,默认:sysdba用户"
-                echo -e "-p|--password\t指定密码,默认:空"
-                echo -e "-r|--remote\t指定连接主机,若远程,请参考sqlplus [@<connect_identifier>]参数,默认:本地"
-                echo -e "执行操作:"
-                echo -e "-o|--opteion\timmediate 立即关闭,force 强制启动,默认:空"
-                echo -e "-e|--exec\t对实例操作,starup启动实例到归档日志模式,shutdown关闭实例"
-                echo -e "其他:"
-                echo -e "--help|-?|-v\t查看脚本信息、版本信息、帮助"
-                echo -e "-d|--debug\t仅仅用于命令行方式的调试模式脚本"
-                echo -e "试例:"
-                echo -e "${0} -exec shutdown timmediate \t#立即关闭本地实例"
-                echo -e "${0} -e startup \t\t#启动本地实例"
+                echo -e "connect args:"
+                echo -e "-u|--user \t specify username,Default:sysdba"
+                echo -e "-p|--password \t specify password,Default:null"
+                echo -e "-r|--remote \t specify connect identifier."
+                echo -e "\t\t please reference sqlplus [@<connect_identifier>],Default:local"
+                echo -e "execute args:"
+                echo -e "-o|--option \t execute option"
+                echo -e "\t\t 1.immediate,It be used for shutdown; "
+                echo -e "\t\t 2.force,It be used for startup,Default:null"
+                echo -e "-e|--exec \t operation on instance."
+                echo -e "\t\t 1.starup,startup the instance into arived logging mode;"
+                echo -e "\t\t 2.shutdown,shutdown the instacne"
+                echo -e "other args:"
+                echo -e "--help|-?|-v \t View script information, version information, help"
+                echo -e "-d|--debug \t Only used for debugging in command line mode"
+                echo -e "---------------------------------------"
+                echo -e "example:"
+                echo -e "# shutdown the instance now"
+                echo -e "${0} -exec shutdown timmediate"
+                echo -e "# startup the instace"
+                echo -e "${0} -e startup"
 
                 exit 0
                 ;;
@@ -131,14 +144,14 @@ function mainInit() {
             -o|--option)
                 option=${2}
                 if [ "$option" != "force" ] && [ "$option" != "immediate" ];then
-                    JSONerr "错误的option参数:${2}"
+                    JSONerr "incorrect option parameter:${2}"
                 fi
                 shift 2;
                 ;;
             -e|--exec)
                 exec=${2}
                 if [ "$exec" != "startup" ] && [ "$exec" != "shutdown" ];then
-                    JSONerr "错误的exec参数:${2}"
+                    JSONerr "incorrect execute paramter:${2}"
                 fi
                 shift 2;
                 ;;

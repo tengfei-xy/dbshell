@@ -6,14 +6,14 @@ dbshell是一个包含windows(cmd)、Linux(bash)系统上的Oracle、sqlserver�
 
 ## 当前情况
 
-|           | Linux | Windows |
-| --------- | ----- | ------- |
-| Oracle    | 启停  |         |
-| MySQL     |       |         |
-| sqlserver |       |         |
-| informix  |       |         |
-| db2       |       |         |
-| 达梦      |       |         |
+|           | Linux                                                        | Windows |
+| --------- | ------------------------------------------------------------ | ------- |
+| Oracle    | [启停](https://github.com/tengfei-xy/dbshell/tree/master/oracle) |         |
+| MySQL     |                                                              |         |
+| sqlserver |                                                              |         |
+| informix  |                                                              |         |
+| db2       |                                                              |         |
+| 达梦      |                                                              |         |
 
 ## 更新情况
 
