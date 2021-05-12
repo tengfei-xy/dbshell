@@ -1,13 +1,13 @@
 #!/bin/bash
-
+self_filename=${0##*[\\/]}
 info="
-##############################
-# Name: ${0##*[\\/]}
+######################################################################
+# Name: ${self_filename}
 # Function: Start and stop script through SQLPlus
 # Environment: Centos7.8 oracle 11.2.0.4 
-# Apply Env: Centos7.x oracle 11g(not rac/dg)
-# Date: 2020/04/27
-##############################"
+# Available Env: Centos7.x oracle 11g(not rac/dg)
+# Date: 2020/05/12
+######################################################################"
 
 _RET=""
 function JSONString() {
@@ -81,21 +81,21 @@ function sql_shutdown(){
     fi
 }
 
-# after exec sqlplus ,output to $TMP 
+# after exec sqlplus ,output to $LOG 
 function execSQLPlus() {
 {
 $sp -S "$user"/"$password" "$remote" as sysdba <<EOF
 $1
 EOF
-}> "$TMP"
-    _RET=$(cat "$TMP")
+}> "$LOG"
+    _RET=$(cat "$LOG")
 }
 
 # main
 function mainInit() {
-
-    TMP=$(mktemp -u $TMP)|| JSONerr "fail to make tmp file"
-    ARGS=$(getopt -o "o:u:p:r:h?v:e:d" -l "option:,user:,password:,remote:,help:,exec:,debug:" -n "err args" -- "$@")
+    LOG=${self_filename}".log"
+    
+    ARGS=$(getopt -o "o:u:p:r:h?ve:d" -l "option:,user:,password:,remote:,help,exec:,debug" -n "err args" -- "$@")
     remote=""
     eval set -- "${ARGS}"
     while true;
@@ -130,7 +130,8 @@ function mainInit() {
                 echo -e "\t\t 2.shutdown,shutdown the instacne"
                 echo -e "other args:"
                 echo -e "--help|-?|-v \t View script information, version information, help"
-                echo -e "-d|--debug \t Only used for debugging in command line mode"
+                echo -e "-d|--debug \t Only used for debugging in command line mode."
+                echo -e "\t\tSuggest to put it in the first one."
                 echo -e "---------------------------------------"
                 echo -e "example:"
                 echo -e "# shutdown the instance now"
@@ -173,7 +174,7 @@ function main(){
     if [ "$exec" = "shutdown" ];then sql_shutdown; fi
 }
 function mainOver(){
-    trap 'rm -f "$TMP"' EXIT
+    trap 'rm -f "$LOG"' EXIT
 }
 
 mainInit "$@"

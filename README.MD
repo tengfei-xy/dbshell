@@ -9,7 +9,7 @@ dbshell是一个包含windows(cmd)、Linux(bash)系统上的Oracle、sqlserver�
 |           | Linux                                                        | Windows |
 | --------- | ------------------------------------------------------------ | ------- |
 | Oracle    | [启停](https://github.com/tengfei-xy/dbshell/tree/master/oracle) |         |
-| MySQL     |                                                              |         |
+| MySQL     | [启停](https://github.com/tengfei-xy/dbshell/tree/master/mysql) |         |
 | sqlserver |                                                              |         |
 | informix  |                                                              |         |
 | db2       |                                                              |         |
@@ -17,4 +17,11 @@ dbshell是一个包含windows(cmd)、Linux(bash)系统上的Oracle、sqlserver�
 
 ## 更新情况
 
-4月26日完成Linux系Oracle启停脚本
+| 时间          | 记录                                                    |
+| ------------- | ------------------------------------------------------- |
+| 2021年4月26日 | 完成Linux系Oracle启停脚本                               |
+| 2021年5月12日 | 完成Linux系MySQL启停脚本<br />更新Linux系Oracle启停脚本 |
+|               |                                                         |
+
+
+

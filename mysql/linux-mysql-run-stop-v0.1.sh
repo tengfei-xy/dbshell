@@ -1,12 +1,16 @@
 #!/bin/bash
-# md5sum:9dfac1fc8ad86b87efae67d56c120676
+self_filename=${0##*[\\/]}
 info="
-linux系MySQL启停脚本\n
-脚本说明:启停方式是通过mysql.service文件进行的,暂不支持直接的mysqld_safe启动
-测试环境:Centos 7.8、非MGR、MySQL5.7/8 \n
-shell:bash-4.2.46\n
-修订时间:2020/04/27\n
-"
+######################################################################
+# Name: ${self_filename}
+# Function: Start and stop script through SQLPlus
+# Instruction: This starts and stops from the mysql.service file.
+#              Direct mysqld_safe starting is not supported for now.
+# Environment: Centos7.8 MySQL 5.7.27
+# Available Env: Centos7.x MySQL 5.7.x
+# Date: 2020/05/12
+######################################################################"
+
 _RET=""
 function JSONString() {
     local _KEY=\"$1\"
@@ -36,45 +40,42 @@ function JSONerr() {
 }
 function JSONSuccess() {
     _RET="" && JSONFill "success"
-
+    exit 0
 }
 function existMySQL() {
-    mysql=$(which mysql 2>/dev/null)
-    test -r "$mysql" || JSONerr "未发现mysql"
 
-    execSQL "select @@basedir;"
-    basedir=$(echo "$_RET" | grep "@@basedir" -o | grep "/.*" -o)
-    test -r "$basedir" && JSONerr "basedir读取错误"
 
-    systemctl status mysqld.service > /dev/null 2>&1
-    if [ ! $? ] ;then
+    way=0
+    if ！systemctl status mysqld >/dev/null 2>&1 ;then
+        way=2
+    else
+        test -z "${basedir}" && JSONerr "Invalid paramter:basedir"
+        mysql="${basedir}/bin/mysql"
         mysql_server=${basedir}support-files/mysql.server > /dev/null 2>&1
-        test -r "${mysql_server}" && mysqld_server=${mysql_server} && way=2
-        test -r "/etc/init.d/mysql.service" && mysqld_server=/etc/init.d/mysql.service && way=3
-    else        
-        way=1
+        test -r "${mysql_server}" && mysqld_server=${mysql_server} && way=1 && return
+        test -r "/etc/init.d/mysql.service" && mysqld_server=/etc/init.d/mysql.service && way=1    
     fi
 
 }
 function execSQL() {
     {
-        test -n "${password}" && password="-p${password}"
-$mysql -u "$user" "${password}" <<EOF
+$mysql -u "$user" "-p${password}" <<EOF
 $1
 EOF
-} >"$TMP"
-    _RET=$(cat "$TMP")
+} >"$LOG"
+    _RET=$(cat "$LOG")
 }
 
 function sql_run_stop() {
     case "$way" in
         1)
-            systemctl mysqld.server "$1" >$TMP;;
-        2|3)
-            $mysqld_server "$1">$TMP;;
+            $mysqld_server "$1" > "$LOG";;
+        2)
+            systemctl "$1" mysqld  > "$LOG";;
         *)
-            JSONerr "没有找到对应的mysql.server";;
+            JSONerr "not found support-files/mysql.server";;
     esac
+
     if [ "$?" -eq 0 ];then
         JSONSuccess
     else
@@ -90,20 +91,27 @@ function sql_run_stop() {
 }
 function mainInit() {
 
-    TMP=$(mktemp -u $TMP) || JSONerr "创建缓存文件失败"
-    #ARGS=$(getopt -o "o:u:p:r:h?v:e:d" -l "option:,user:,password:,remote:,help:,exec:,debug:" -n "err args" -- "$@")
-    ARGS=$(getopt -o "u:p:h?v:e:d" -l "user:,password:,help:,exec:,debug:" -n "err args" -- "$@")
+    LOG=${self_filename}".log"
+    
+    ARGS=$(getopt -o "u:p:h?vb:de:" -l "user:,password:,basedir:,help,exec:,debug," -n "err" -- "$@")
     remote=""
     eval set -- "${ARGS}"
     while true; do
         case "${1}" in
         -u | --user)
-            user=${2}
+            user="root"
+            test -n "${2}" && user="${2}"
             shift 2
             ;;
         -p | --password)
-            password=${2}
+            password=""
+            test -n "${2}" && password="${2}"
             shift 2
+            ;;
+        -b | --basedir)
+            basedir=$2
+            shift 2
+
             ;;
         -r | --remote)
             remote=${2}
@@ -112,27 +120,40 @@ function mainInit() {
         -h | --help | "-?" | -v)
             echo -e "$info"
             echo -e "---------------------------------------"
-            echo -e "连接选项:"
-            echo -e "-u|--user\t指定连接用户,默认:root"
-            echo -e "-p|--password\t指定密码,默认:空"
-            #echo -e "-r|--remote\t指定连接主机,参数,默认:本地"
-            echo -e "其他:"
-            echo -e "--help|-?|-v\t查看脚本信息、版本信息、帮助"
-            echo -e "-d|--debug\t仅仅用于命令行方式的调试模式脚本"
-            echo -e "试例:"
-            echo -e "${0} -exec shutdown \t#关闭数据库"
-            echo -e "${0} -e startup \t\t#启动数据库"
+            echo -e "connect args:"
+            echo -e "-u|--user \t specify username,Default:root"
+            echo -e "-p|--password \t specify password,Default:"
+            echo -e "-r|--remote \t specify remote mysql server,Default:local way"
+            echo -e "-b|--basedir \t specift Mysql basedir,Default:"
+            echo -e "other args:"
+            echo -e "--help|-?|-v \t View script information, version information, help"
+            echo -e "-d|--debug \t Only used for debugging in command line mode."
+            echo -e "\t\tSuggest to put it in the first one."
+            echo -e "---------------------------------------"
+            echo -e "example:"
+            echo -e "# shutdown the MySQL now"
+            echo -e "${0} --exec shutdown --basedir /usr/local/mysql-5.7.27/"
+            echo -e "# startup the MySQL"
+            echo -e "${0} -e startup -b /usr/local/mysql-5.7.27/"
 
             exit 0
             ;;
 
         
         -e | --exec)
-            exec=${2}
-            if [ "$exec" != "startup" ] && [ "$exec" != "shutdown" ]; then
-                JSONerr "错误的exec参数:${2}"
-            fi
-            shift 2
+            case "$2" in
+            startup)
+                exec="start"
+                ;;
+            shutdown)
+                exec="stop"
+                ;;
+            *)
+                JSONerr "incorrect execute paramter:${2}"
+                ;;
+            esac
+                shift 2
+
             ;;
         -d | --debug)
             set -x
@@ -151,11 +172,9 @@ function main() {
     sql_run_stop "$exec"
 }
 function mainOver() {
-    trap 'rm -f "$TMP"' EXIT
+    trap 'rm -f "$LOG"' EXIT
 }
 
 mainInit "$@"
 main
 mainOver
-# ./support-files/mysql.server start
-# Starting MySQL. SUCCESS!
