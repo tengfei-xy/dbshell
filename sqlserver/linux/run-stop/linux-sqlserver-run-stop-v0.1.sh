@@ -3,12 +3,10 @@ self_filename=${0##*[\\/]}
 info="
 ######################################################################
 # Name: ${self_filename}
-# Function: Start and stop script through SQLPlus
-# Instruction: This starts and stops from the mysql.service file.
-#              Direct mysqld_safe starting is not supported for now.
-# Environment: Centos7.8 MySQL 5.7.27
-# Available Env: Centos7.x MySQL 5.7.x
-# Date: 2020/05/12
+# Function: Start and stop script through server
+# Environment: Centos7.8 SQLServer-2017
+# Available Env: Centos7.x SQLServer-2017
+# Date: 2020/05/13
 ######################################################################"
 
 _RET=""
@@ -42,38 +40,36 @@ function JSONSuccess() {
     _RET="" && JSONFill "success"
     exit 0
 }
-function existMySQL() {
+function existSQLServer() {
 
 
     way=0
-    if ！systemctl status mysqld >/dev/null 2>&1 ;then
+    if ！systemctl status mssql-server >/dev/null 2>&1 ;then
         way=2
     else
-        test -z "${basedir}" && JSONerr "Invalid paramter:basedir"
-        mysql="${basedir}/bin/mysql"
-        mysql_server=${basedir}support-files/mysql.server > /dev/null 2>&1
-        test -r "${mysql_server}" && mysqld_server=${mysql_server} && way=1 && return
-        test -r "/etc/init.d/mysql.service" && mysqld_server=/etc/init.d/mysql.service && way=1    
+        way=1  
     fi
 
 }
-function execSQL() {
-    {
-$mysql -u "$user" "-p${password}" <<EOF
-$1
-EOF
-} >"$LOG"
-    _RET=$(cat "$LOG")
-}
+# For SQL Server, 
+# start and stop do not need to use interactive mode for the time being
+# function execSQL() {
+#     {
+# sqlcmd -S "$remote" -U "$user"  -P "${password}" <<EOF
+# $1
+# EOF
+# } >"$LOG"
+#     _RET=$(cat "$LOG")
+# }
 
 function sql_run_stop() {
     case "$way" in
         1)
-            $mysqld_server "$1" > "$LOG";;
-        2)
-            systemctl "$1" mysqld  > "$LOG";;
+            systemctl "$1" mssql-server > "$LOG"
+            ;;
         *)
-            JSONerr "not found support-files/mysql.server";;
+            JSONerr "No other way to start is supported"
+            ;;
     esac
 
     if [ "$?" -eq 0 ];then
@@ -81,25 +77,19 @@ function sql_run_stop() {
     else
         JSONerr "$_RET"
     fi
-    # Mysql8支持命令行关闭，但不支持启动
-    # execSQL "shutdown;"
-    # if ! echo "$_RET" | grep "Query OK"; then
-    #     JSONSuccess
-    # else
-    #     JSONerr "$_RET"
-    # fi
+
 }
 function mainInit() {
 
     LOG=${self_filename}".log"
     
-    ARGS=$(getopt -o "u:p:h?vb:de:" -l "user:,password:,basedir:,help,exec:,debug," -n "err" -- "$@")
+    ARGS=$(getopt -o "u:p:h?v:de:" -l "user:,password:,help,exec:,debug," -n "err" -- "$@")
     remote=""
     eval set -- "${ARGS}"
     while true; do
         case "${1}" in
         -u | --user)
-            user="root"
+            user="SA"
             test -n "${2}" && user="${2}"
             shift 2
             ;;
@@ -108,11 +98,7 @@ function mainInit() {
             test -n "${2}" && password="${2}"
             shift 2
             ;;
-        -b | --basedir)
-            basedir=$2
-            shift 2
 
-            ;;
         -r | --remote)
             remote=${2}
             shift 2
@@ -121,9 +107,9 @@ function mainInit() {
             echo -e "$info"
             echo -e "---------------------------------------"
             echo -e "connect args:"
-            echo -e "-u|--user \t specify username,Default:root"
+            echo -e "-u|--user \t specify username,Default:SA"
             echo -e "-p|--password \t specify password,Default:"
-            echo -e "-r|--remote \t specify remote mysql server,Default:local way"
+            echo -e "-r|--remote \t specify remote SQL Sserver,Default:localhost"
             echo -e "-b|--basedir \t specift Mysql basedir,Default:"
             echo -e "other args:"
             echo -e "--help|-?|-v \t View script information, version information, help"
@@ -131,10 +117,10 @@ function mainInit() {
             echo -e "\t\tSuggest to put it in the first one."
             echo -e "---------------------------------------"
             echo -e "example:"
-            echo -e "# shutdown the MySQL now"
-            echo -e "${0} --exec shutdown --basedir /usr/local/mysql-5.7.27/"
-            echo -e "# startup the MySQL"
-            echo -e "${0} -e startup -b /usr/local/mysql-5.7.27/"
+            echo -e "# shutdown the SQLServer now"
+            echo -e "${0} --exec shutdown"
+            echo -e "# startup the SQLServer"
+            echo -e "${0} -e startup"
 
             exit 0
             ;;
@@ -168,11 +154,11 @@ function mainInit() {
 }
 
 function main() {
-    existMySQL
+    existSQLServer
     sql_run_stop "$exec"
 }
 function mainOver() {
-    trap 'rm -f "$LOG"' EXIT
+    trap '\rm -f ${LOG}' EXIT
 }
 
 mainInit "$@"
